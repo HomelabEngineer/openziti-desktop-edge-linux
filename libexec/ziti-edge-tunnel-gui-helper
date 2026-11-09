@@ -1,0 +1,9 @@
+#!/usr/bin/python3 -I
+# Root helper for ziti-edge-tunnel-gui, launched via pkexec.
+# -I (isolated mode) ignores PYTHON* env vars and the user site dir; the
+# library path below is root-owned.
+import sys
+sys.path.insert(0, "/usr/lib/ziti-edge-tunnel-gui")
+from ziti_desktop_edge.helper import main  # noqa: E402
+
+main()
