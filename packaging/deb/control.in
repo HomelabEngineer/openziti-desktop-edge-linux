@@ -1,0 +1,18 @@
+Package: ziti-edge-tunnel-gui
+Version: @VERSION@-@RELEASE@
+Architecture: all
+Maintainer: @MAINTAINER@
+Section: net
+Priority: optional
+Depends: python3 (>= 3.8), python3-pyqt6 | python3-pyqt5, pkexec | policykit-1, systemd
+Recommends: ziti-edge-tunnel, python3-qrcode
+Suggests: gnome-shell-extension-appindicator
+Homepage: https://github.com/openziti/ziti-tunnel-sdk-c
+Description: Ziti Desktop Edge - GUI for the OpenZiti ziti-edge-tunnel service
+ A system-tray desktop client with the same interface as Ziti Desktop Edge
+ for Windows and Android. It controls the existing ziti-edge-tunnel systemd
+ service (connect, disconnect, restart, start at boot) and talks to it over
+ its IPC sockets to add and remove identities, toggle them, handle MFA and
+ external sign-in, list services, change the log level and edit the tunnel
+ configuration. The tunneler itself is not included; install it from the
+ OpenZiti package repository.
