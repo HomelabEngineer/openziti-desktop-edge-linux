@@ -1,0 +1,56 @@
+%global __brp_python_bytecompile %{nil}
+%global debug_package %{nil}
+
+Name:           ziti-edge-tunnel-gui
+Version:        @VERSION@
+Release:        @RELEASE@%{?dist}
+Summary:        Ziti Desktop Edge - GUI for the OpenZiti ziti-edge-tunnel service
+License:        Apache-2.0
+URL:            https://github.com/openziti/ziti-tunnel-sdk-c
+Source0:        %{name}-%{version}.tar.gz
+BuildArch:      noarch
+Requires:       python3 >= 3.8
+Requires:       (python3-pyqt6 or python3-qt5)
+Requires:       polkit
+Requires:       systemd
+Recommends:     ziti-edge-tunnel
+Recommends:     python3-qrcode
+
+%description
+A system-tray desktop client with the same interface as Ziti Desktop Edge for
+Windows and Android. It controls the existing ziti-edge-tunnel systemd service
+(connect, disconnect, restart, start at boot) and talks to it over its IPC
+sockets to add and remove identities, toggle them, handle MFA and external
+sign-in, list services, change the log level and edit the tunnel
+configuration. The tunneler itself is not included.
+
+%prep
+%setup -q
+
+%build
+
+%install
+sh packaging/install.sh %{buildroot}
+
+%post
+echo "ziti-edge-tunnel-gui: desktop users must be in the 'ziti' group:"
+echo "    sudo usermod -aG ziti \$USER   (then log out and back in)"
+
+%files
+%license LICENSE NOTICE
+%doc README.md
+%{_bindir}/ziti-edge-tunnel-gui
+/usr/lib/ziti-edge-tunnel-gui
+%dir /usr/libexec/ziti-edge-tunnel-gui
+/usr/libexec/ziti-edge-tunnel-gui/ziti-edge-tunnel-gui-helper
+%{_datadir}/applications/ziti-edge-tunnel-gui.desktop
+%config(noreplace) %{_sysconfdir}/xdg/autostart/ziti-edge-tunnel-gui.desktop
+%{_datadir}/metainfo/ziti-edge-tunnel-gui.metainfo.xml
+%{_datadir}/polkit-1/actions/org.openziti.ziti-edge-tunnel-gui.policy
+%{_datadir}/polkit-1/rules.d/49-ziti-edge-tunnel-gui.rules
+%{_datadir}/icons/hicolor/*/apps/ziti-edge-tunnel-gui.png
+%exclude /usr/share/doc/ziti-edge-tunnel-gui
+
+%changelog
+* @CHANGELOG_DATE@ @MAINTAINER@ - @VERSION@-@RELEASE@
+- Release @VERSION@
