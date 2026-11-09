@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+if [ "$1" = "configure" ]; then
+    if ! getent group ziti >/dev/null 2>&1; then
+        echo "ziti-edge-tunnel-gui: the 'ziti' group does not exist yet; install ziti-edge-tunnel."
+    fi
+    echo "ziti-edge-tunnel-gui: desktop users must be in the 'ziti' group:"
+    echo "    sudo usermod -aG ziti \$USER   (then log out and back in)"
+fi
+exit 0
