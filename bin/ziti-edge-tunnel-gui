@@ -1,0 +1,7 @@
+#!/usr/bin/python3
+# Launcher for Ziti Desktop Edge for Linux (ziti-edge-tunnel-gui)
+import sys
+sys.path.insert(0, "/usr/lib/ziti-edge-tunnel-gui")
+from ziti_desktop_edge.app import main  # noqa: E402
+
+sys.exit(main())
