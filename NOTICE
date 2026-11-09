@@ -1,0 +1,17 @@
+Ziti Desktop Edge for Linux (ziti-edge-tunnel-gui)
+Copyright Open Source contributors. Licensed under the Apache License 2.0 (see LICENSE).
+
+This product includes artwork (button images, icons, background) from
+Ziti Desktop Edge for Windows, https://github.com/openziti/desktop-edge-win,
+Copyright NetFoundry Inc., licensed under the Apache License 2.0.
+Files: src/ziti_desktop_edge/assets/images/*, data/icons/* (derived).
+
+Fonts bundled in src/ziti_desktop_edge/assets/fonts/ (from the same repository):
+  Open Sans  - Copyright Google / Ascender, Apache License 2.0 / SIL Open Font License 1.1
+  Russo One  - Copyright Jovanny Lemonad, SIL Open Font License 1.1
+
+The IPC protocol implementation follows ziti-tunnel-sdk-c
+(https://github.com/openziti/ziti-tunnel-sdk-c, Apache License 2.0).
+
+OpenZiti and Ziti are trademarks of NetFoundry Inc. This is an independent
+community project and is not affiliated with or endorsed by NetFoundry.
