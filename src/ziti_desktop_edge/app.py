@@ -14,7 +14,10 @@ import time
 
 from .qt import QtCore, QtGui, QtNetwork, QtWidgets, QT_API, exec_
 from . import __version__, desktop, envfile, paths, theme
-from .ipc import CommandClient, EventClient
+from .ipc import CommandClient, EventClient, IpcResult
+from .main_window import MainWindow
+from .tray import Tray
+from .updater import Updater, is_newer
 from .model import TunnelModel
 from .service import (HelperRunner, ServiceController, user_in_ziti_group,
                       user_listed_in_ziti_group)
@@ -79,7 +82,8 @@ class App(QtCore.QObject):
         self.tray_hint = None
         self._check_permissions()
 
-        from .main_window import MainWindow
+        self.server = None
+        self.updater = Updater(self)
         self.window = MainWindow(self)
         self.tray = None
         self.model.notification.connect(self._notify)
@@ -108,6 +112,19 @@ class App(QtCore.QObject):
         self._ui_timer.start()
         self.service.start_polling()
 
+        self.updater.available.connect(self._update_available)
+        self.updater.upToDate.connect(self._update_none)
+        self.updater.failed.connect(self._update_failed)
+        self.updater.progress.connect(lambda t: self.message(t) if self._manual_check else log.info("%s", t))
+        self.updater.downloaded.connect(lambda f: self.install_update_file(f, confirm=False))
+        self._manual_check = False
+        self._update_timer = QtCore.QTimer(self)
+        self._update_timer.setInterval(24 * 3600 * 1000)
+        self._update_timer.timeout.connect(lambda: self.check_updates(manual=False))
+        if self.updater.enabled():
+            self._update_timer.start()
+            QtCore.QTimer.singleShot(20000, lambda: self.check_updates(manual=False))
+
     # -- startup ------------------------------------------------------------------
     def show_initial(self):
         if not self.args.minimized:
@@ -122,7 +139,6 @@ class App(QtCore.QObject):
     def _ensure_tray(self):
         if self.tray is not None or not desktop.tray_available():
             return
-        from .tray import Tray
         self.tray = Tray(self)
         self.tray.show()
         self._tray_timer.stop()
@@ -261,7 +277,6 @@ class App(QtCore.QObject):
     # -- IPC helpers ----------------------------------------------------------
     def ipc_call(self, command, data=None, callback=None):
         if not self.events.is_connected() and not self.service.state.running:
-            from .ipc import IpcResult
             res = IpcResult(False, "The tunnel is not connected. Tap the power button first.")
             if callback:
                 callback(res)
@@ -560,6 +575,95 @@ class App(QtCore.QObject):
                                "Open it again from your app menu. Quit from Main Menu \u203a Quit. "
                                "The tunnel service is not affected.")
 
+    # -- updates ------------------------------------------------------------------
+    def check_updates(self, manual=True):
+        if not manual and not _bool(self.settings.value("auto_update_check", True), True):
+            return
+        self._manual_check = manual  # background checks stay quiet unless an update exists
+        self.updater.check()
+
+    def _update_available(self, version, rel):
+        self.window.menu.set_update_status("Version %s is available" % version)
+        if not self._manual_check and self.settings.value("update_notified") == version:
+            return
+        self.settings.setValue("update_notified", version)
+        self._notify("Ziti Desktop Edge %s is available" % version,
+                     "Open the app and click the update message to install it.")
+        def install():
+            self._manual_check = True  # from here on the user is watching
+            self.updater.download(rel)
+        self.window.show_message("Version %s is available. Click to install." % version,
+                                 action=install, timeout_ms=0)
+
+    def _update_none(self, latest):
+        self.window.menu.set_update_status("You have the latest version (%s)" % latest)
+        if self._manual_check:
+            self.message("You have the latest version")
+
+    def _update_failed(self, msg):
+        self.window.menu.set_update_status(msg)
+        if self._manual_check:
+            self.message(msg, error=True)
+        else:
+            log.warning("background update check: %s", msg)
+
+    @staticmethod
+    def read_package_version(path):
+        try:
+            if path.endswith(".deb"):
+                out = subprocess.run(["dpkg-deb", "--field", path, "Package", "Version"],
+                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=15).stdout.decode()
+                f = dict(l.split(":", 1) for l in out.splitlines() if ":" in l)
+                return f.get("Package", "").strip(), f.get("Version", "").strip()
+            out = subprocess.run(["rpm", "-qp", "--nosignature", "--qf", "%{NAME} %{VERSION}-%{RELEASE}", path],
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=15).stdout.decode()
+            name, _, ver = out.strip().partition(" ")
+            return name, ver
+        except (OSError, subprocess.SubprocessError):
+            return "", ""
+
+    def install_update_file(self, path, confirm=True):
+        name, version = self.read_package_version(path)
+        if name != paths.APP_ID:
+            self.message("%s is not a Ziti Desktop Edge package" % os.path.basename(path), error=True)
+            return
+        if confirm:
+            if is_newer(version):
+                q = "Install Ziti Desktop Edge %s? (installed: %s)\n\nThe app restarts afterwards; " \
+                    "the tunnel keeps running." % (version, __version__)
+            else:
+                q = "%s is not newer than the installed version (%s). Reinstall it anyway?" % (version, __version__)
+            r = QtWidgets.QMessageBox.question(self.window, "Install update", q)
+            if r != QtWidgets.QMessageBox.StandardButton.Yes:
+                return
+        self.message("Installing %s %s..." % (name, version))
+
+        def done(ok, out):
+            try:
+                self.helper.finished.disconnect(done)
+            except TypeError:
+                pass
+            if ok:
+                log.info("update installed: %s", out.splitlines()[-1] if out else "")
+                self.message("Update installed. Restarting...")
+                QtCore.QTimer.singleShot(800, self.restart_app)
+            else:
+                last = [l for l in (out or "").splitlines() if l.strip()]
+                self.message("Update failed: %s" % (last[-1] if last else "cancelled"), error=True)
+        self.helper.finished.connect(done)
+        self.helper.run(["install-update", os.path.abspath(path)])
+
+    def restart_app(self):
+        args = [] if self.window.isVisible() else ["--minimized"]
+        if self.server is not None:
+            self.server.close()  # let the new instance become the single instance
+        launcher = "/usr/bin/ziti-edge-tunnel-gui"
+        if os.path.exists(launcher) and os.path.dirname(os.path.abspath(__file__)).startswith("/usr/lib/"):
+            QtCore.QProcess.startDetached(launcher, args)
+        else:
+            QtCore.QProcess.startDetached(sys.executable, ["-m", "ziti_desktop_edge"] + args)
+        self.quit()
+
     def quit(self):
         self.events.stop()
         self.cmd.close()
@@ -616,6 +720,7 @@ def main(argv=None):
     log.info("starting %s %s (%s, Qt %s)", paths.APP_ID, __version__, QT_API, QtCore.qVersion())
 
     app = App(qapp, args)
+    app.server = server
 
     def on_conn():
         c = server.nextPendingConnection()

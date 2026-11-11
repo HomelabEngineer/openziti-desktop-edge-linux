@@ -293,7 +293,11 @@ class MainMenu(SlideOverlay):
         self.t_close.toggle.toggled.connect(lambda on: self.app.settings.setValue("close_to_tray", on))
         self.t_notify = ToggleItem("Desktop notifications", "MFA prompts, timeouts and connection changes")
         self.t_notify.toggle.toggled.connect(lambda on: self.app.settings.setValue("notifications", on))
-        for w in (self.t_login, self.t_min, self.t_close, self.t_notify):
+        self.t_updates = ToggleItem("Check for updates automatically",
+                                    "Once a day, from %s releases" % (self.app.updater.repo or "GitHub"))
+        self.t_updates.toggle.toggled.connect(lambda on: self.app.settings.setValue("auto_update_check", on))
+        self.t_updates.setVisible(self.app.updater.enabled())
+        for w in (self.t_login, self.t_min, self.t_close, self.t_notify, self.t_updates):
             lay.addWidget(w)
         self.tray_item = MenuItem("Show icon in top bar", "dashboard.png", arrow=True,
                                   tint=theme.BLUE_TEXT, detail="GNOME")
@@ -308,6 +312,7 @@ class MainMenu(SlideOverlay):
         self.t_min.toggle.set_checked_silent(_bool(s.value("start_minimized", True)))
         self.t_close.toggle.set_checked_silent(_bool(s.value("close_to_tray", True)))
         self.t_notify.toggle.set_checked_silent(_bool(s.value("notifications", True)))
+        self.t_updates.toggle.set_checked_silent(_bool(s.value("auto_update_check", True)))
         self.tray_item.setVisible(self.app.tray is None and bool(self.app.tray_hint))
 
     def _build_logs(self):
@@ -376,6 +381,16 @@ class MainMenu(SlideOverlay):
         self.ab_os = KeyValue("System", platform.platform(terse=True))
         for w in (self.ab_app, self.ab_tunnel, self.ab_rev, self.ab_qt, self.ab_os):
             lay.addWidget(w)
+        lay.addSpacing(10)
+        self.update_status = label("", role="muted", size=8.5, wrap=True, align=Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self.update_status)
+        row = QtWidgets.QHBoxLayout()
+        self.check_btn = button("Check for Updates", "primary", lambda: self.app.check_updates(manual=True))
+        self.check_btn.setVisible(self.app.updater.enabled())
+        row.addWidget(self.check_btn)
+        self.file_btn = button("Install Update From File...", "secondary", self._pick_update)
+        row.addWidget(self.file_btn)
+        lay.addLayout(row)
         lay.addSpacing(12)
         blurb = label("A desktop front end for the OpenZiti ziti-edge-tunnel service. "
                       "It controls the existing systemd service and its IPC sockets and does "
@@ -392,6 +407,16 @@ class MainMenu(SlideOverlay):
             lay.addWidget(l)
         lay.addStretch(1)
         self._add("about", "About", _scroll(inner))
+
+    def set_update_status(self, text):
+        self.update_status.setText(text)
+
+    def _pick_update(self):
+        fn, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Choose the new Ziti Desktop Edge package", os.path.expanduser("~/Downloads"),
+            "Packages (*.deb *.rpm)")
+        if fn:
+            self.app.install_update_file(fn)
 
     def _on_show_about(self):
         v = self.app.model.status.get("ServiceVersion") or {}

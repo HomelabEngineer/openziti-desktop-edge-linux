@@ -5,6 +5,8 @@ Only a small, validated set of operations is offered:
   set-env KEY=VALUE [KEY=VALUE...]   edit ziti-edge-tunnel.env (whitelisted keys)
   unset-env KEY [KEY...]
   join-group                          add the calling desktop user to group 'ziti'
+  install-update FILE                 upgrade this app from a .deb/.rpm of package
+                                      ziti-edge-tunnel-gui (any other package is refused)
   install-tray-extension              install GNOME's AppIndicator extension package
                                       (fixed package name; dnf or apt only)
   service start|stop|restart|enable|disable
@@ -16,8 +18,11 @@ The polkit action is org.openziti.ziti-edge-tunnel-gui.helper.
 import grp
 import os
 import pwd
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 
 from . import envfile
 
@@ -82,6 +87,80 @@ def cmd_service(args):
     sys.exit(subprocess.call(["systemctl", args[0], UNIT]))
 
 
+APP_PACKAGE = "ziti-edge-tunnel-gui"
+MAX_UPDATE_SIZE = 64 * 1024 * 1024
+
+
+def _which_root(name):
+    for d in ("/usr/bin", "/bin", "/usr/sbin", "/sbin"):
+        p = os.path.join(d, name)
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def _package_of(path, kind):
+    """Return (name, version) read from the package file itself."""
+    if kind == "deb":
+        out = subprocess.check_output([_which_root("dpkg-deb"), "--field", path, "Package", "Version"])
+        fields = dict(l.split(":", 1) for l in out.decode().splitlines() if ":" in l)
+        return fields.get("Package", "").strip(), fields.get("Version", "").strip()
+    out = subprocess.check_output([_which_root("rpm"), "-qp", "--nosignature", "--qf",
+                                   "%{NAME} %{VERSION}-%{RELEASE}", path], stderr=subprocess.DEVNULL)
+    name, _, ver = out.decode().strip().partition(" ")
+    return name, ver
+
+
+def cmd_install_update(args):
+    if len(args) != 1:
+        _die("usage: install-update FILE.deb|FILE.rpm")
+    src = args[0]
+    kind = "deb" if src.endswith(".deb") else "rpm" if src.endswith(".rpm") else None
+    if kind is None:
+        _die("only .deb or .rpm files can be installed")
+    # copy into a root-only directory first, so the file cannot change after it is checked
+    try:
+        fd = os.open(src, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError as e:
+        _die("cannot open %s: %s" % (src, e))
+    work = tempfile.mkdtemp(prefix="ziti-gui-update-")
+    os.chmod(work, 0o700)
+    dst = os.path.join(work, "update." + kind)
+    try:
+        with os.fdopen(fd, "rb") as fin:
+            st = os.fstat(fin.fileno())
+            if not stat.S_ISREG(st.st_mode) or st.st_size > MAX_UPDATE_SIZE:
+                _die("not a regular package file")
+            with open(dst, "wb") as fout:
+                shutil.copyfileobj(fin, fout)
+        if kind == "deb" and not _which_root("dpkg-deb"):
+            _die("this system does not use .deb packages")
+        if kind == "rpm" and not _which_root("rpm"):
+            _die("this system does not use .rpm packages")
+        try:
+            name, version = _package_of(dst, kind)
+        except (subprocess.CalledProcessError, OSError):
+            _die("the file is not a valid %s package" % kind)
+        if name != APP_PACKAGE:
+            _die("refusing to install package '%s' (only %s updates are allowed)" % (name, APP_PACKAGE))
+        print("installing %s %s" % (name, version))
+        sys.stdout.flush()
+        env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")
+        if kind == "deb":
+            cmd = [_which_root("apt-get"), "install", "-y", dst] if _which_root("apt-get") \
+                else [_which_root("dpkg"), "-i", dst]
+        elif _which_root("dnf"):
+            cmd = [_which_root("dnf"), "install", "-y", dst]
+        elif _which_root("zypper"):
+            cmd = [_which_root("zypper"), "--non-interactive", "install", "--allow-unsigned-rpm", dst]
+        else:
+            cmd = [_which_root("rpm"), "-Uvh", dst]
+        rc = subprocess.call(cmd, env=env)
+        sys.exit(rc)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 TRAY_PACKAGE = "gnome-shell-extension-appindicator"
 
 
@@ -102,6 +181,7 @@ COMMANDS = {
     "join-group": cmd_join_group,
     "service": cmd_service,
     "install-tray-extension": cmd_install_tray_extension,
+    "install-update": cmd_install_update,
 }
 
 
