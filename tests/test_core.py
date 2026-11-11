@@ -190,7 +190,9 @@ class UpdaterTests(unittest.TestCase):
         self.assertTrue(is_newer("1.0.10", "1.0.9"))
         self.assertFalse(is_newer("1.0.2", "1.0.2"))
         self.assertFalse(is_newer("v1.0.1", "1.0.2"))
-        self.assertTrue(is_newer("1.0.2-2", "1.0.2"))
+        # the package revision is ignored, so a 1.0.2-1 release is not offered to a running 1.0.2
+        self.assertFalse(is_newer("1.0.2-1", "1.0.2"))
+        self.assertTrue(is_newer("1.0.3-1", "1.0.2"))
 
     def test_pick_asset(self):
         from ziti_desktop_edge.updater import pick_asset
@@ -198,6 +200,20 @@ class UpdaterTests(unittest.TestCase):
                   {"name": "ziti-edge-tunnel-gui_1.0.3-1_all.deb"}, {"name": "other_1.0_all.deb"}]
         self.assertEqual(pick_asset(assets, "deb")["name"], "ziti-edge-tunnel-gui_1.0.3-1_all.deb")
         self.assertEqual(pick_asset(assets, "rpm")["name"], "ziti-edge-tunnel-gui-1.0.3-1.noarch.rpm")
+
+    def test_release_matching(self):
+        from ziti_desktop_edge.updater import release_version, asset_version, update_repo
+        rel = {"tag_name": "v1.0.3", "assets": [{"name": "SHA256SUMS"},
+               {"name": "ziti-edge-tunnel-gui_1.0.3-1_all.deb"}, {"name": "ziti-edge-tunnel-gui-1.0.3-1.noarch.rpm"}]}
+        self.assertEqual(release_version(rel, "deb"), "1.0.3-1")
+        self.assertEqual(release_version(rel, "rpm"), "1.0.3-1")
+        self.assertEqual(release_version({"tag_name": "v2.0.0", "assets": [{"name": "app.deb"}]}, "deb"), "2.0.0")
+        self.assertEqual(asset_version("openziti.deb"), "")
+        os.environ.pop("ZDE_UPDATE_REPO", None)
+        self.assertEqual(update_repo(), "HomelabEngineer/openziti-desktop-edge-linux")
+        os.environ["ZDE_UPDATE_REPO"] = "none"
+        self.assertEqual(update_repo(), "")
+        del os.environ["ZDE_UPDATE_REPO"]
 
     def test_repo_validation(self):
         from ziti_desktop_edge import updater
