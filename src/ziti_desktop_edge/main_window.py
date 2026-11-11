@@ -308,7 +308,8 @@ class MainWindow(QtWidgets.QWidget):
             self.app.add_identity_url(dlg.url.text().strip(), dlg.name.text().strip())
 
     def dragEnterEvent(self, e):
-        if e.mimeData().hasUrls() and any(u.toLocalFile().endswith(".jwt") for u in e.mimeData().urls()):
+        if e.mimeData().hasUrls() and any(u.toLocalFile().endswith((".jwt", ".deb", ".rpm"))
+                                          for u in e.mimeData().urls()):
             e.acceptProposedAction()
 
     def dropEvent(self, e):
@@ -316,6 +317,8 @@ class MainWindow(QtWidgets.QWidget):
             f = u.toLocalFile()
             if f.endswith(".jwt"):
                 self.app.add_identity_jwt(f)
+            elif f.endswith((".deb", ".rpm")):
+                self.app.install_update_file(f)
 
     # -- window behaviour -----------------------------------------------------
     def closeEvent(self, e):

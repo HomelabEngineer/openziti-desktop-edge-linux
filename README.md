@@ -40,9 +40,9 @@ update either one on its own.
 
 ```sh
 # Debian / Ubuntu
-sudo apt install ./ziti-edge-tunnel-gui_1.0.1-1_all.deb
+sudo apt install ./ziti-edge-tunnel-gui_1.0.2-1_all.deb
 # Fedora / RHEL / Rocky / Alma (RHEL needs EPEL for PyQt)
-sudo dnf install ./ziti-edge-tunnel-gui-1.0.1-1.noarch.rpm
+sudo dnf install ./ziti-edge-tunnel-gui-1.0.2-1.noarch.rpm
 
 # once per desktop user, then log out and back in
 sudo usermod -aG ziti $USER
@@ -71,6 +71,25 @@ gnome-extensions enable appindicatorsupport@rgcjonas.gmail.com   # then log out 
 ```
 
 KDE Plasma, Xfce, Cinnamon, MATE and Budgie have a tray already.
+
+## Updating
+
+Ubuntu's App Center and GNOME Software can't upgrade a .deb from a local file: if the package
+is already installed they only offer "Remove". The package upgrades normally with apt, so use
+any of these:
+
+* **From the app (1.0.2 and later):** Main Menu › About › **Install Update From File...**, or
+  drop the new `.deb`/`.rpm` onto the window. It asks for an admin password, upgrades through
+  apt/dnf, and restarts itself. The tunnel keeps running.
+* **Automatic (optional):** build with `UPDATE_REPO=owner/repo packaging/build.sh` and attach
+  the `.deb`, the `.rpm` and `dist/SHA256SUMS` to each GitHub release. The app then checks once a
+  day (it can be turned off in App Settings) and offers "Version X is available. Click to install."
+  Downloads are checked against `SHA256SUMS`.
+* **Terminal:** `sudo apt install ./ziti-edge-tunnel-gui_<version>_all.deb` or
+  `sudo dnf install ./ziti-edge-tunnel-gui-<version>.noarch.rpm`. No uninstall is needed.
+
+The root helper only installs files whose package name is `ziti-edge-tunnel-gui`, and it copies
+the file into a root-only folder before checking it.
 
 ## Permissions
 
