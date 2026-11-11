@@ -144,5 +144,43 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(self.m.identity("/x/y/office.json").name, "office")
 
 
+class DesktopTests(unittest.TestCase):
+    def _fake_ext(self, info_output, rc=0):
+        d = tempfile.mkdtemp()
+        f = os.path.join(d, "gnome-extensions")
+        with open(f, "w") as fh:
+            fh.write("#!/bin/sh\nprintf '%s'\nexit %d\n" % (info_output.replace("\n", "\\n"), rc))
+        os.chmod(f, 0o755)
+        return d
+
+    def _state(self, bindir):
+        from ziti_desktop_edge import desktop
+        old = os.environ["PATH"]
+        os.environ["PATH"] = bindir + os.pathsep + "/usr/bin:/bin"
+        os.environ.pop("ZDE_FAKE_EXT_STATE", None)
+        try:
+            return desktop.appindicator_state()
+        finally:
+            os.environ["PATH"] = old
+
+    def test_extension_states(self):
+        self.assertEqual(self._state(self._fake_ext("x\n  State: ACTIVE\n  Enabled: Yes\n")), "enabled")
+        self.assertEqual(self._state(self._fake_ext("x\n  State: INACTIVE\n  Enabled: No\n")), "disabled")
+        self.assertEqual(self._state(self._fake_ext("Extension does not exist", rc=2)), "missing")
+
+    def test_gvariant_quoting(self):
+        from ziti_desktop_edge.desktop import _gv_str
+        self.assertEqual(_gv_str("it's \\ ok"), "'it\\'s \\\\ ok'")
+
+    def test_gnome_detection(self):
+        from ziti_desktop_edge import desktop
+        os.environ["XDG_CURRENT_DESKTOP"] = "GNOME"
+        self.assertTrue(desktop.is_gnome())
+        os.environ["XDG_CURRENT_DESKTOP"] = "KDE"
+        os.environ.pop("XDG_SESSION_DESKTOP", None)
+        os.environ.pop("DESKTOP_SESSION", None)
+        self.assertFalse(desktop.is_gnome())
+
+
 if __name__ == "__main__":
     unittest.main()

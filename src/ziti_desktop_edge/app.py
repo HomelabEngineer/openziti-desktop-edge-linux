@@ -13,7 +13,7 @@ import tarfile
 import time
 
 from .qt import QtCore, QtGui, QtNetwork, QtWidgets, QT_API, exec_
-from . import __version__, envfile, paths, theme
+from . import __version__, desktop, envfile, paths, theme
 from .ipc import CommandClient, EventClient
 from .model import TunnelModel
 from .service import (HelperRunner, ServiceController, user_in_ziti_group,
@@ -75,16 +75,25 @@ class App(QtCore.QObject):
         self.listed_in_group = False
         self._last_running = None
         self._pending_restart = False
+        self.tray = None
+        self.tray_hint = None
         self._check_permissions()
 
         from .main_window import MainWindow
         self.window = MainWindow(self)
         self.tray = None
-        if QtWidgets.QSystemTrayIcon.isSystemTrayAvailable() or os.environ.get("ZDE_FORCE_TRAY"):
-            from .tray import Tray
-            self.tray = Tray(self)
-            self.tray.show()
-            self.model.notification.connect(self._notify)
+        self.model.notification.connect(self._notify)
+        # GNOME without the AppIndicator extension has no tray. Keep checking, so
+        # the icon appears as soon as the extension is enabled - no restart needed.
+        self._tray_timer = QtCore.QTimer(self)
+        self._tray_timer.setInterval(4000)
+        self._tray_timer.timeout.connect(self._ensure_tray)
+        self._ensure_tray()
+        if self.tray is None:
+            self.tray_hint = self.tray_fix_state()
+            log.info("no system tray available (desktop: %s); running without a tray icon",
+                     os.environ.get("XDG_CURRENT_DESKTOP", "?"))
+            self._tray_timer.start()
 
         self.events.received.connect(self.model.handle_event)
         self.events.connectedChanged.connect(self._events_connected)
@@ -101,9 +110,81 @@ class App(QtCore.QObject):
 
     # -- startup ------------------------------------------------------------------
     def show_initial(self):
-        minimized = self.args.minimized and self.tray is not None
-        if not minimized:
+        if not self.args.minimized:
             self.window.show_and_raise()
+        elif self.tray is None and not _bool(self.settings.value("bg_hint_shown", False)):
+            # started at login with no tray: say once where the app went
+            self.settings.setValue("bg_hint_shown", True)
+            desktop.notify("Ziti Desktop Edge is running in the background",
+                           "Open it from your app menu to connect or manage identities. "
+                           "Enable top bar icons to get a tray icon.")
+
+    def _ensure_tray(self):
+        if self.tray is not None or not desktop.tray_available():
+            return
+        from .tray import Tray
+        self.tray = Tray(self)
+        self.tray.show()
+        self._tray_timer.stop()
+        self.tray_hint = None
+        self._update_tray()
+        log.info("system tray available; tray icon shown")
+        self.window.refresh_connection()
+
+    # -- GNOME top-bar icon support ------------------------------------------------
+    def tray_fix_state(self):
+        """What the 'show icon in the top bar' notice should offer, or None."""
+        if self.tray is not None or not desktop.is_gnome():
+            return None
+        return desktop.appindicator_state()
+
+    def fix_tray(self):
+        state = desktop.appindicator_state()
+        if state == "missing":
+            self.message("Installing top bar icon support...")
+
+            def done(ok, out):
+                try:
+                    self.helper.finished.disconnect(done)
+                except TypeError:
+                    pass
+                if not ok:
+                    self.message("Could not install %s: %s" % (desktop.APPINDICATOR_PACKAGE, out or "cancelled"),
+                                 error=True)
+                    return
+                desktop.enable_appindicator()
+                self._after_enable(newly_installed=True)
+            self.helper.finished.connect(done)
+            self.helper.run(["install-tray-extension"])
+        elif state in ("disabled", "blocked"):
+            ok, err = desktop.enable_appindicator()
+            self.tray_hint = self.tray_fix_state()
+            if not ok:
+                self.message("Could not enable the extension: %s" % err, error=True)
+                return
+            self._after_enable(newly_installed=False)
+        elif state == "enabled":
+            self.message("Top bar icon support is enabled but not running yet. Log out and back in.")
+        self.window.refresh_connection()
+
+    def _after_enable(self, newly_installed):
+        self._tray_timer.start()
+
+        def check():
+            self.tray_hint = self.tray_fix_state()
+            if self.tray is None:
+                self.message("Almost done: log out and back in to show the Ziti icon in the top bar.")
+            else:
+                self.message("The Ziti icon is now in the top bar")
+            self.window.refresh_connection()
+        if newly_installed:
+            check()
+        else:
+            QtCore.QTimer.singleShot(5000, check)
+
+    def dismiss_tray_hint(self):
+        self.settings.setValue("tray_hint_dismissed", True)
+        self.window.refresh_connection()
 
     def _check_permissions(self):
         g = user_in_ziti_group()
@@ -163,7 +244,10 @@ class App(QtCore.QObject):
             self.tray.update_state()
 
     def _notify(self, title, text, severity="info"):
-        if self.tray is None or not _bool(self.settings.value("notifications", True), True):
+        if not _bool(self.settings.value("notifications", True), True):
+            return
+        if self.tray is None:
+            desktop.notify(title, text, "critical" if severity == "critical" else "normal")
             return
         Icon = QtWidgets.QSystemTrayIcon.MessageIcon
         icon = Icon.Critical if severity == "critical" else (
@@ -460,14 +544,21 @@ class App(QtCore.QObject):
             self.message("Could not update autostart: %s" % e, error=True)
 
     def close_to_tray(self):
-        return self.tray is not None and _bool(self.settings.value("close_to_tray", True), True)
+        """Closing the window keeps the app running in the background (with or without a tray)."""
+        return _bool(self.settings.value("close_to_tray", True), True)
 
     def first_hide_hint(self):
-        if not _bool(self.settings.value("hide_hint_shown", False)):
-            self.settings.setValue("hide_hint_shown", True)
-            self._notify("Ziti Desktop Edge is still running",
-                         "It stays in the system tray. Quit it from the tray menu; "
-                         "the tunnel service is not affected.")
+        key = "hide_hint_shown" if self.tray is not None else "hide_hint_notray_shown"
+        if not _bool(self.settings.value(key, False)):
+            self.settings.setValue(key, True)
+            if self.tray is not None:
+                self._notify("Ziti Desktop Edge is still running",
+                             "It stays in the system tray. Quit it from the tray menu; "
+                             "the tunnel service is not affected.")
+            else:
+                desktop.notify("Ziti Desktop Edge is still running",
+                               "Open it again from your app menu. Quit from Main Menu \u203a Quit. "
+                               "The tunnel service is not affected.")
 
     def quit(self):
         self.events.stop()
@@ -532,7 +623,5 @@ def main(argv=None):
             c.readyRead.connect(lambda: app.window.show_and_raise())
     server.newConnection.connect(on_conn)
 
-    if app.tray is None:
-        qapp.setQuitOnLastWindowClosed(True)
     app.show_initial()
     return exec_(qapp)

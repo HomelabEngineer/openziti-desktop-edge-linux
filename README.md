@@ -40,9 +40,9 @@ update either one on its own.
 
 ```sh
 # Debian / Ubuntu
-sudo apt install ./ziti-edge-tunnel-gui_1.0.0-1_all.deb
+sudo apt install ./ziti-edge-tunnel-gui_1.0.1-1_all.deb
 # Fedora / RHEL / Rocky / Alma (RHEL needs EPEL for PyQt)
-sudo dnf install ./ziti-edge-tunnel-gui-1.0.0-1.noarch.rpm
+sudo dnf install ./ziti-edge-tunnel-gui-1.0.1-1.noarch.rpm
 
 # once per desktop user, then log out and back in
 sudo usermod -aG ziti $USER
@@ -53,8 +53,24 @@ it for you (it asks for an administrator password).
 
 **Requirements:** Python 3.8+, PyQt6 *or* PyQt5 (the app picks whichever is installed),
 polkit and systemd. `python3-qrcode` is recommended so the MFA QR code shows; without it you get
-the secret and a link instead. On GNOME, the tray icon needs the AppIndicator extension
-(installed by default on Ubuntu).
+the secret and a link instead.
+
+### Tray icon on GNOME (Fedora, Debian, RHEL)
+
+Stock GNOME has no system tray; Ubuntu adds one with its AppIndicator extension, which is why the
+icon shows there out of the box. On other GNOME desktops the app still runs in the background
+(it starts minimized at login, closing the window keeps it running, notifications still appear,
+and launching it again from the app menu brings the window back), and it shows a
+**"Show icon in top bar"** button that installs and/or enables
+*AppIndicator and KStatusNotifierItem Support*. The icon then appears without restarting the
+app, or after one log out and back in if the extension was just installed. To do it by hand:
+
+```sh
+sudo dnf install gnome-shell-extension-appindicator      # Debian: sudo apt install ...
+gnome-extensions enable appindicatorsupport@rgcjonas.gmail.com   # then log out and back in
+```
+
+KDE Plasma, Xfce, Cinnamon, MATE and Budgie have a tray already.
 
 ## Permissions
 
@@ -69,7 +85,8 @@ the secret and a link instead. On GNOME, the tray icon needs the AppIndicator ex
 * **Start at boot and settings changes** always need an administrator. Settings go through
   `pkexec` and the root helper `/usr/libexec/ziti-edge-tunnel-gui/ziti-edge-tunnel-gui-helper`. The
   helper accepts only a validated `ZITI_DNS_IP_RANGE` or `ZITI_VERBOSE`, joining the caller to
-  `ziti`, and the five systemctl verbs on this one unit.
+  `ziti`, installing the one fixed package `gnome-shell-extension-appindicator`, and the five
+  systemctl verbs on this one unit.
 
 ## Notes on tunnel configuration
 
