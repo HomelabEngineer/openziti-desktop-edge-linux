@@ -11,7 +11,7 @@ from .widgets import (MenuItem, OptionItem, PanelHeader, SlideOverlay, ToggleIte
 
 SUPPORT_URL = "https://openziti.discourse.group/"
 DOCS_URL = "https://netfoundry.io/docs/openziti/reference/tunnelers/linux/"
-PROJECT_URL = "https://github.com/openziti/ziti-tunnel-sdk-c"
+TUNNEL_SOURCE_URL = "https://github.com/openziti/ziti-tunnel-sdk-c"
 
 
 def _page():
@@ -398,9 +398,12 @@ class MainMenu(SlideOverlay):
                       role="muted", size=8.5, wrap=True, align=Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(blurb)
         lay.addSpacing(8)
-        for text, url in (("Linux tunneler documentation", DOCS_URL),
-                          ("ziti-edge-tunnel source", PROJECT_URL),
-                          ("Community support", SUPPORT_URL)):
+        for text, url in (("Project page", paths.PROJECT_URL),
+                          ("Releases", paths.RELEASES_URL),
+                          ("Report an issue", paths.ISSUES_URL),
+                          ("Linux tunneler documentation", DOCS_URL),
+                          ("ziti-edge-tunnel source", TUNNEL_SOURCE_URL),
+                          ("OpenZiti community support", SUPPORT_URL)):
             l = label('<a href="%s" style="color:%s;">%s</a>' % (url, theme.BLUE_TEXT, text),
                       align=Qt.AlignmentFlag.AlignCenter)
             l.setOpenExternalLinks(True)

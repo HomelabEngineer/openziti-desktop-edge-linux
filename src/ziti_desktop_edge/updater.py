@@ -8,10 +8,17 @@ upgrade, and then restarts into the new version.
 
 Two sources:
 * a .deb/.rpm file the user picks ("Install Update From File...");
-* optionally the latest GitHub release of UPDATE_REPO (set at build time with
-  ``UPDATE_REPO=owner/repo packaging/build.sh`` or at run time with
-  ``ZDE_UPDATE_REPO``). Release assets are verified against a SHA256SUMS
-  asset when the release has one.
+* the latest GitHub release of the project repository
+  (https://github.com/HomelabEngineer/openziti-desktop-edge-linux by default;
+  override with ``UPDATE_REPO=owner/repo packaging/build.sh`` or at run time with
+  ``ZDE_UPDATE_REPO``; use ``none`` to turn update checks off). Release assets
+  are verified against a SHA256SUMS asset when the release has one.
+
+How a release is matched: GET /repos/<repo>/releases/latest returns the newest
+published release that is not a draft or pre-release. From its assets the .deb
+(Debian/Ubuntu) or .rpm (Fedora/RHEL) is picked, the version is read from that
+file name (ziti-edge-tunnel-gui_1.0.3-1_all.deb -> 1.0.3-1), falling back to
+the tag (v1.0.3), and it is offered only if newer than the running version.
 """
 import hashlib
 import json
@@ -32,7 +39,10 @@ def update_repo():
             from ._build_config import UPDATE_REPO as repo  # written by packaging/install.sh
         except ImportError:
             repo = ""
+        repo = repo or paths.PROJECT_REPO
     repo = (repo or "").strip().strip("/")
+    if repo.lower() in ("none", "off", "disabled"):
+        return ""
     return repo if re.match(r"^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$", repo) else ""
 
 
@@ -42,8 +52,13 @@ def parse_version(v):
     return tuple(int(x) for x in re.findall(r"\d+", v)) or (0,)
 
 
+def upstream(v):
+    """Drop the package revision: '1.0.3-1' -> '1.0.3' (the app only knows its upstream version)."""
+    return re.sub(r"-[0-9][0-9A-Za-z.]*$", "", (v or "").strip().lstrip("vV"))
+
+
 def is_newer(candidate, current=__version__):
-    a, b = list(parse_version(candidate)), list(parse_version(current))
+    a, b = list(parse_version(upstream(candidate))), list(parse_version(upstream(current)))
     n = max(len(a), len(b))
     return a + [0] * (n - len(a)) > b + [0] * (n - len(b))
 
@@ -62,14 +77,34 @@ def package_kind():
     return None
 
 
+def _matches(name, kind):
+    n = name.lower()
+    if kind == "deb":
+        return n.endswith(".deb") and ("_all" in n or "_amd64" in n or "noarch" not in n)
+    return n.endswith(".rpm") and not n.endswith(".src.rpm")
+
+
 def pick_asset(assets, kind):
-    for a in assets:
-        name = a.get("name", "")
-        if not name.startswith(paths.APP_ID):
-            continue
-        if (kind == "deb" and name.endswith(".deb")) or (kind == "rpm" and name.endswith(".rpm")):
-            return a
-    return None
+    """The release's package for this system; prefers files named after the package."""
+    candidates = [a for a in assets if _matches(a.get("name", ""), kind)]
+    named = [a for a in candidates if a.get("name", "").startswith(paths.APP_ID)]
+    pool = named or candidates
+    return pool[0] if len(pool) >= 1 else None
+
+
+_ASSET_VERSION = re.compile(r"[_-](\d+(?:\.\d+)+(?:-[0-9][0-9A-Za-z.]*)?)(?:[._](?:all|noarch|amd64|x86_64))")
+
+
+def asset_version(name):
+    """'ziti-edge-tunnel-gui_1.0.3-1_all.deb' -> '1.0.3-1'; '' if the name has no version."""
+    m = _ASSET_VERSION.search(name or "")
+    return m.group(1) if m else ""
+
+
+def release_version(rel, kind):
+    asset = pick_asset(rel.get("assets") or [], kind)
+    v = asset_version(asset.get("name", "")) if asset else ""
+    return v or (rel.get("tag_name") or "").lstrip("vV")
 
 
 def cache_dir():
@@ -140,12 +175,19 @@ class Updater(QtCore.QObject):
                 return
             tag = rel.get("tag_name") or ""
             self.latest = rel
+            kind = package_kind()
             if rel.get("draft") or rel.get("prerelease") or not tag:
                 self.upToDate.emit(__version__)
-            elif is_newer(tag):
-                self.available.emit(tag.lstrip("vV"), rel)
+                return
+            if pick_asset(rel.get("assets") or [], kind) is None:
+                self.failed.emit("Release %s has no .%s file attached" % (tag, kind or "deb/.rpm"))
+                return
+            version = release_version(rel, kind)
+            log.info("latest release %s: %s package version %s (running %s)", tag, kind, version, __version__)
+            if is_newer(version):
+                self.available.emit(upstream(version), rel)
             else:
-                self.upToDate.emit(tag.lstrip("vV"))
+                self.upToDate.emit(upstream(version))
         api = os.environ.get("ZDE_UPDATE_API", "https://api.github.com").rstrip("/")
         self._get("%s/repos/%s/releases/latest" % (api, self.repo), got)
 
