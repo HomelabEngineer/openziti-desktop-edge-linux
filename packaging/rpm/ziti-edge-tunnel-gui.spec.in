@@ -15,6 +15,7 @@ Requires:       polkit
 Requires:       systemd
 Recommends:     ziti-edge-tunnel
 Recommends:     python3-qrcode
+Suggests:       gnome-shell-extension-appindicator
 
 %description
 A system-tray desktop client with the same interface as Ziti Desktop Edge for
@@ -53,4 +54,6 @@ echo "    sudo usermod -aG ziti \$USER   (then log out and back in)"
 
 %changelog
 * @CHANGELOG_DATE@ @MAINTAINER@ - @VERSION@-@RELEASE@
-- Release @VERSION@
+- Keep running in the background on desktops without a system tray (stock GNOME)
+- Offer to install/enable GNOME AppIndicator support; tray icon appears without restart
+- Desktop notifications via org.freedesktop.Notifications when there is no tray
