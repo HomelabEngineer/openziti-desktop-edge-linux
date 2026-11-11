@@ -213,8 +213,8 @@ class MainWindow(QtWidgets.QWidget):
         dismissable = False
         if not st.installed and st.load_state != "unknown":
             msg = ("The <b>ziti-edge-tunnel</b> service was not found.<br>Install it from "
-                   '<a style="color:#7EB4EA" href="https://netfoundry.io/docs/openziti/downloads/?os=Linux">'
-                   "OpenZiti downloads</a>, then reopen this app.")
+                   '<a style="color:#7EB4EA" href="%s">'
+                   "OpenZiti downloads</a>, then reopen this app." % paths.TUNNEL_DOWNLOADS_URL)
         elif a.perm_ok is False:
             if a.listed_in_group:
                 msg = ("You were added to the <b>%s</b> group, but this login session started before that. "

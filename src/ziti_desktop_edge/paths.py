@@ -10,6 +10,13 @@ be pointed at the bundled mock tunneler for development.
 import os
 
 APP_ID = "ziti-edge-tunnel-gui"
+
+# project home; update checks use this repo's GitHub releases
+PROJECT_REPO = "HomelabEngineer/openziti-desktop-edge-linux"
+PROJECT_URL = "https://github.com/" + PROJECT_REPO
+RELEASES_URL = PROJECT_URL + "/releases"
+ISSUES_URL = PROJECT_URL + "/issues"
+TUNNEL_DOWNLOADS_URL = "https://netfoundry.io/docs/openziti/downloads/?os=Linux"
 APP_NAME = "Ziti Desktop Edge"
 ORG_NAME = "openziti-community"
 

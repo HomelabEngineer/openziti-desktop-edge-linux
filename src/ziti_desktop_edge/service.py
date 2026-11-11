@@ -118,7 +118,10 @@ class ServiceController(QtCore.QObject):
                                  "--property=" + ",".join(self.PROPS)]
 
         def done(*_):
-            out = bytes(proc.readAllStandardOutput()).decode("utf-8", "replace")
+            try:
+                out = bytes(proc.readAllStandardOutput()).decode("utf-8", "replace")
+            except RuntimeError:  # app is shutting down
+                return
             props = {}
             for line in out.splitlines():
                 if "=" in line:
