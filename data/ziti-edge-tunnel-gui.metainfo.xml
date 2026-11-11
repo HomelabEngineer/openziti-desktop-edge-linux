@@ -10,7 +10,8 @@
     add and remove identities, manage MFA, view services and logs, and change tunnel settings.
     Runs in the background from the system tray. It does not include the tunneler itself.</p>
   </description>
-  <url type="homepage">https://github.com/openziti/ziti-tunnel-sdk-c</url>
+  <url type="homepage">https://github.com/HomelabEngineer/openziti-desktop-edge-linux</url>
+  <url type="bugtracker">https://github.com/HomelabEngineer/openziti-desktop-edge-linux/issues</url>
   <developer id="io.openziti.community"><name>Open Source</name></developer>
   <content_rating type="oars-1.1"/>
   <launchable type="desktop-id">ziti-edge-tunnel-gui.desktop</launchable>
