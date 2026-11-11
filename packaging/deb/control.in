@@ -7,7 +7,7 @@ Priority: optional
 Depends: python3 (>= 3.8), python3-pyqt6 | python3-pyqt5, pkexec | policykit-1, systemd
 Recommends: ziti-edge-tunnel, python3-qrcode
 Suggests: gnome-shell-extension-appindicator
-Homepage: https://github.com/openziti/ziti-tunnel-sdk-c
+Homepage: https://github.com/HomelabEngineer/openziti-desktop-edge-linux
 Description: Ziti Desktop Edge - GUI for the OpenZiti ziti-edge-tunnel service
  A system-tray desktop client with the same interface as Ziti Desktop Edge
  for Windows and Android. It controls the existing ziti-edge-tunnel systemd
