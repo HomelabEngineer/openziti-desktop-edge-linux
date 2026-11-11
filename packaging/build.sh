@@ -2,7 +2,9 @@
 # Build the .deb and .rpm packages into dist/.
 #   packaging/build.sh            # both
 #   packaging/build.sh deb|rpm    # one
-# Env: RELEASE (default 1), MAINTAINER (default "Open Source <opensource@openziti.invalid>")
+# Env: RELEASE (default 1), MAINTAINER (default "Open Source <opensource@openziti.invalid>"),
+#      UPDATE_REPO=owner/repo  -> the app checks that repo's GitHub releases for updates
+#        (attach the .deb, .rpm and dist/SHA256SUMS to each release)
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -17,7 +19,7 @@ trap 'rm -rf "$BUILD"' EXIT
 
 subst() {
     sed -e "s|@VERSION@|$VERSION|g" -e "s|@RELEASE@|$RELEASE|g" \
-        -e "s|@MAINTAINER@|$MAINTAINER|g" \
+        -e "s|@MAINTAINER@|$MAINTAINER|g" -e "s|@UPDATE_REPO@|${UPDATE_REPO:-}|g" \
         -e "s|@CHANGELOG_DATE@|$(LC_ALL=C date +'%a %b %d %Y')|g" "$1"
 }
 
@@ -48,10 +50,13 @@ build_rpm() {
     cp "$T"/RPMS/noarch/*.rpm "$DIST/"
 }
 
+export UPDATE_REPO="${UPDATE_REPO:-}"
+case "$UPDATE_REPO" in ""|*/*) ;; *) echo "UPDATE_REPO must be owner/repo" >&2; exit 2 ;; esac
 case "$WHAT" in
     deb) build_deb ;;
     rpm) build_rpm ;;
     all) build_deb; build_rpm ;;
     *) echo "usage: $0 [deb|rpm|all]" >&2; exit 2 ;;
 esac
+( cd "$DIST" && ls ziti-edge-tunnel-gui*.deb ziti-edge-tunnel-gui*.rpm 2>/dev/null | xargs -r sha256sum > SHA256SUMS )
 ls -l "$DIST"
