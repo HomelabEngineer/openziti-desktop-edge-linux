@@ -286,15 +286,19 @@ class MainMenu(SlideOverlay):
         lay.setSpacing(0)
         self.t_login = ToggleItem("Start at login", "Run in the background (system tray) when you log in")
         self.t_login.toggle.toggled.connect(self.app.set_autostart)
-        self.t_min = ToggleItem("Start minimized", "Only show the tray icon when the app starts")
+        self.t_min = ToggleItem("Start minimized", "Start in the background without opening the window")
         self.t_min.toggle.toggled.connect(lambda on: self.app.settings.setValue("start_minimized", on))
         self.t_close = ToggleItem("Keep running when closed",
-                                  "Closing the window hides it to the tray instead of quitting")
+                                  "Closing the window keeps the app running in the background")
         self.t_close.toggle.toggled.connect(lambda on: self.app.settings.setValue("close_to_tray", on))
         self.t_notify = ToggleItem("Desktop notifications", "MFA prompts, timeouts and connection changes")
         self.t_notify.toggle.toggled.connect(lambda on: self.app.settings.setValue("notifications", on))
         for w in (self.t_login, self.t_min, self.t_close, self.t_notify):
             lay.addWidget(w)
+        self.tray_item = MenuItem("Show icon in top bar", "dashboard.png", arrow=True,
+                                  tint=theme.BLUE_TEXT, detail="GNOME")
+        self.tray_item.clicked.connect(self.app.fix_tray)
+        lay.addWidget(self.tray_item)
         lay.addStretch(1)
         self._add("app_settings", "App Settings", _scroll(inner))
 
@@ -304,6 +308,7 @@ class MainMenu(SlideOverlay):
         self.t_min.toggle.set_checked_silent(_bool(s.value("start_minimized", True)))
         self.t_close.toggle.set_checked_silent(_bool(s.value("close_to_tray", True)))
         self.t_notify.toggle.set_checked_silent(_bool(s.value("notifications", True)))
+        self.tray_item.setVisible(self.app.tray is None and bool(self.app.tray_hint))
 
     def _build_logs(self):
         body = QtWidgets.QWidget()

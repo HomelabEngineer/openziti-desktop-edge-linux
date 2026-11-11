@@ -98,6 +98,10 @@ class MainWindow(QtWidgets.QWidget):
         self.notice_btn = button("", "primary")
         nl.addWidget(self.notice_btn)
         self.notice_btn.clicked.connect(self._notice_action)
+        self.notice_dismiss = button("Not now", "flat")
+        self.notice_dismiss.setStyleSheet("color: #7d8faf; font-size: 11px;")
+        self.notice_dismiss.clicked.connect(self.app.dismiss_tray_hint)
+        nl.addWidget(self.notice_dismiss, 0, Qt.AlignmentFlag.AlignHCenter)
         self._notice_fn = None
         lay.addWidget(self.notice)
         lay.addSpacing(8)
@@ -206,6 +210,7 @@ class MainWindow(QtWidgets.QWidget):
         a = self.app
         st = a.service.state
         msg, btn, fn = None, None, None
+        dismissable = False
         if not st.installed and st.load_state != "unknown":
             msg = ("The <b>ziti-edge-tunnel</b> service was not found.<br>Install it from "
                    '<a style="color:#7EB4EA" href="https://netfoundry.io/docs/openziti/downloads/?os=Linux">'
@@ -223,12 +228,22 @@ class MainWindow(QtWidgets.QWidget):
         elif st.active_state == "failed":
             msg = "ziti-edge-tunnel failed to start. See Main Menu › Advanced Settings › Service Logs."
             btn, fn = "View Service Logs", lambda: (self.menu.open_menu(), self.menu.show_logs("service_logs"))
+        elif a.tray_hint and str(a.settings.value("tray_hint_dismissed", "false")).lower() != "true":
+            dismissable = True
+            if a.tray_hint == "enabled":
+                msg = "Log out and back in to show the Ziti icon in the top bar."
+            else:
+                msg = ("GNOME does not show tray icons by default, so Ziti Desktop Edge runs in the "
+                       "background without one. Turn on top bar icons to control the tunnel from there.")
+                btn = ("Show icon in top bar" if a.tray_hint == "missing" else "Enable top bar icon")
+                fn = a.fix_tray
         self.notice.setVisible(bool(msg))
         if msg:
             self.notice_text.setText(msg)
         self.notice_btn.setVisible(bool(btn))
         if btn:
             self.notice_btn.setText(btn)
+        self.notice_dismiss.setVisible(dismissable)
         self._notice_fn = fn
 
     def _notice_action(self):

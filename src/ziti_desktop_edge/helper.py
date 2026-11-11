@@ -5,6 +5,8 @@ Only a small, validated set of operations is offered:
   set-env KEY=VALUE [KEY=VALUE...]   edit ziti-edge-tunnel.env (whitelisted keys)
   unset-env KEY [KEY...]
   join-group                          add the calling desktop user to group 'ziti'
+  install-tray-extension              install GNOME's AppIndicator extension package
+                                      (fixed package name; dnf or apt only)
   service start|stop|restart|enable|disable
                                       fallback for systems whose polkit cannot
                                       grant per-unit rights (polkit < 0.106)
@@ -80,11 +82,26 @@ def cmd_service(args):
     sys.exit(subprocess.call(["systemctl", args[0], UNIT]))
 
 
+TRAY_PACKAGE = "gnome-shell-extension-appindicator"
+
+
+def cmd_install_tray_extension(_args):
+    for pm, cmd in (("dnf", ["dnf", "install", "-y", TRAY_PACKAGE]),
+                    ("apt-get", ["apt-get", "install", "-y", TRAY_PACKAGE]),
+                    ("zypper", ["zypper", "--non-interactive", "install", TRAY_PACKAGE])):
+        for d in ("/usr/bin", "/bin", "/usr/sbin"):
+            if os.path.exists(os.path.join(d, pm)):
+                env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")
+                sys.exit(subprocess.call(cmd, env=env))
+    _die("no supported package manager (dnf, apt-get, zypper) found")
+
+
 COMMANDS = {
     "set-env": cmd_set_env,
     "unset-env": cmd_unset_env,
     "join-group": cmd_join_group,
     "service": cmd_service,
+    "install-tray-extension": cmd_install_tray_extension,
 }
 
 
