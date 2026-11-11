@@ -40,9 +40,9 @@ update either one on its own.
 
 ```sh
 # Debian / Ubuntu
-sudo apt install ./ziti-edge-tunnel-gui_1.0.2-1_all.deb
+sudo apt install ./ziti-edge-tunnel-gui_1.0.3-1_all.deb
 # Fedora / RHEL / Rocky / Alma (RHEL needs EPEL for PyQt)
-sudo dnf install ./ziti-edge-tunnel-gui-1.0.2-1.noarch.rpm
+sudo dnf install ./ziti-edge-tunnel-gui-1.0.3-1.noarch.rpm
 
 # once per desktop user, then log out and back in
 sudo usermod -aG ziti $USER
@@ -74,19 +74,44 @@ KDE Plasma, Xfce, Cinnamon, MATE and Budgie have a tray already.
 
 ## Updating
 
-Ubuntu's App Center and GNOME Software can't upgrade a .deb from a local file: if the package
-is already installed they only offer "Remove". The package upgrades normally with apt, so use
-any of these:
+Project page: <https://github.com/HomelabEngineer/openziti-desktop-edge-linux>.
+Releases: <https://github.com/HomelabEngineer/openziti-desktop-edge-linux/releases>.
 
-* **From the app (1.0.2 and later):** Main Menu › About › **Install Update From File...**, or
-  drop the new `.deb`/`.rpm` onto the window. It asks for an admin password, upgrades through
-  apt/dnf, and restarts itself. The tunnel keeps running.
-* **Automatic (optional):** build with `UPDATE_REPO=owner/repo packaging/build.sh` and attach
-  the `.deb`, the `.rpm` and `dist/SHA256SUMS` to each GitHub release. The app then checks once a
-  day (it can be turned off in App Settings) and offers "Version X is available. Click to install."
-  Downloads are checked against `SHA256SUMS`.
+Ubuntu's App Center and GNOME Software can't upgrade a .deb from a local file: if the package
+is already installed they only offer "Remove". The package upgrades normally with apt, and from
+1.0.2 on the app updates itself:
+
+* **Automatic:** once a day (and from Main Menu › About › **Check for Updates**) the app asks
+  GitHub for the latest release of this repository. If it is newer, it shows
+  "Version X is available. Click to install." It downloads the right package, checks it against
+  `SHA256SUMS`, installs it through apt/dnf after an admin password prompt, and restarts. The
+  tunnel keeps running. Turn this off in App Settings.
+* **From a file:** Main Menu › About › **Install Update From File...**, or drop the
+  `.deb`/`.rpm` onto the window.
 * **Terminal:** `sudo apt install ./ziti-edge-tunnel-gui_<version>_all.deb` or
   `sudo dnf install ./ziti-edge-tunnel-gui-<version>.noarch.rpm`. No uninstall is needed.
+
+### How the update check matches a release
+
+1. It calls `https://api.github.com/repos/HomelabEngineer/openziti-desktop-edge-linux/releases/latest`.
+   GitHub returns the newest **published** release. Drafts and releases marked
+   **pre-release** are skipped, so you can stage a release safely.
+2. From that release's attached files it picks the `.deb` on Debian/Ubuntu or the `.rpm` on
+   Fedora/RHEL, preferring files whose names start with `ziti-edge-tunnel-gui`.
+3. It reads the version from that file name (`ziti-edge-tunnel-gui_1.0.3-1_all.deb` → 1.0.3).
+   If the name has no version, it uses the tag (`v1.0.3` → 1.0.3).
+4. It offers the update only if that version is higher than the one running. The `-1` package
+   revision is ignored.
+5. If the release has a `SHA256SUMS` file, the download must match it or it is not installed.
+
+### Publishing a release
+
+```sh
+# 1. bump src/ziti_desktop_edge/__init__.py  (__version__ = "1.0.3")
+make deb rpm                       # -> dist/*.deb, dist/*.rpm, dist/SHA256SUMS
+# 2. GitHub › Releases › Draft a new release, tag v1.0.3 (match __version__)
+# 3. attach all three files from dist/, then Publish (not pre-release)
+```
 
 The root helper only installs files whose package name is `ziti-edge-tunnel-gui`, and it copies
 the file into a root-only folder before checking it.
