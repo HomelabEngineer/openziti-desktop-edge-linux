@@ -3,8 +3,8 @@
 #   packaging/build.sh            # both
 #   packaging/build.sh deb|rpm    # one
 # Env: RELEASE (default 1), MAINTAINER (default "Open Source <opensource@openziti.invalid>"),
-#      UPDATE_REPO=owner/repo  -> the app checks that repo's GitHub releases for updates
-#        (attach the .deb, .rpm and dist/SHA256SUMS to each release)
+#      UPDATE_REPO=owner/repo  -> check a different repo's GitHub releases for updates
+#        (default: HomelabEngineer/openziti-desktop-edge-linux; UPDATE_REPO=none turns checks off)
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -51,7 +51,7 @@ build_rpm() {
 }
 
 export UPDATE_REPO="${UPDATE_REPO:-}"
-case "$UPDATE_REPO" in ""|*/*) ;; *) echo "UPDATE_REPO must be owner/repo" >&2; exit 2 ;; esac
+case "$UPDATE_REPO" in ""|none|*/*) ;; *) echo "UPDATE_REPO must be owner/repo or none" >&2; exit 2 ;; esac
 case "$WHAT" in
     deb) build_deb ;;
     rpm) build_rpm ;;
