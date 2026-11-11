@@ -31,11 +31,13 @@ configuration. The tunneler itself is not included.
 %build
 
 %install
-sh packaging/install.sh %{buildroot}
+UPDATE_REPO="@UPDATE_REPO@" sh packaging/install.sh %{buildroot}
 
 %post
+if [ "$1" -eq 1 ]; then
 echo "ziti-edge-tunnel-gui: desktop users must be in the 'ziti' group:"
 echo "    sudo usermod -aG ziti \$USER   (then log out and back in)"
+fi
 
 %files
 %license LICENSE NOTICE
@@ -54,6 +56,8 @@ echo "    sudo usermod -aG ziti \$USER   (then log out and back in)"
 
 %changelog
 * @CHANGELOG_DATE@ @MAINTAINER@ - @VERSION@-@RELEASE@
+- Install updates from inside the app (file or GitHub release), since Ubuntu's
+  App Center cannot upgrade an installed .deb from a local file
 - Keep running in the background on desktops without a system tray (stock GNOME)
 - Offer to install/enable GNOME AppIndicator support; tray icon appears without restart
 - Desktop notifications via org.freedesktop.Notifications when there is no tray
