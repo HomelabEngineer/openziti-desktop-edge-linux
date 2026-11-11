@@ -182,5 +182,33 @@ class DesktopTests(unittest.TestCase):
         self.assertFalse(desktop.is_gnome())
 
 
+class UpdaterTests(unittest.TestCase):
+    def test_version_compare(self):
+        from ziti_desktop_edge.updater import is_newer, parse_version
+        self.assertEqual(parse_version("v1.2.3-1"), (1, 2, 3, 1))
+        self.assertTrue(is_newer("v1.0.3", "1.0.2"))
+        self.assertTrue(is_newer("1.0.10", "1.0.9"))
+        self.assertFalse(is_newer("1.0.2", "1.0.2"))
+        self.assertFalse(is_newer("v1.0.1", "1.0.2"))
+        self.assertTrue(is_newer("1.0.2-2", "1.0.2"))
+
+    def test_pick_asset(self):
+        from ziti_desktop_edge.updater import pick_asset
+        assets = [{"name": "SHA256SUMS"}, {"name": "ziti-edge-tunnel-gui-1.0.3-1.noarch.rpm"},
+                  {"name": "ziti-edge-tunnel-gui_1.0.3-1_all.deb"}, {"name": "other_1.0_all.deb"}]
+        self.assertEqual(pick_asset(assets, "deb")["name"], "ziti-edge-tunnel-gui_1.0.3-1_all.deb")
+        self.assertEqual(pick_asset(assets, "rpm")["name"], "ziti-edge-tunnel-gui-1.0.3-1.noarch.rpm")
+
+    def test_repo_validation(self):
+        from ziti_desktop_edge import updater
+        for good in ("owner/repo", "a-b/c.d_e"):
+            os.environ["ZDE_UPDATE_REPO"] = good
+            self.assertEqual(updater.update_repo(), good)
+        for bad in ("", "noslash", "a/b/c", "a/b?x=1", "../etc"):
+            os.environ["ZDE_UPDATE_REPO"] = bad
+            self.assertEqual(updater.update_repo(), "")
+        del os.environ["ZDE_UPDATE_REPO"]
+
+
 if __name__ == "__main__":
     unittest.main()
